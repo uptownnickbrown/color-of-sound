@@ -1,0 +1,6 @@
+https://www.bignerdranch.com/blog/create-data-driven-documents-with-d3js/
+https://www.bignerdranch.com/blog/music-visualization-with-d3-js/ - audio Apis with d3
+
+http://www.compositiontoday.com/sound_bank/flute/flute.asp - samples
+
+https://github.com/mdn/violent-theremin/blob/gh-pages/scripts/app.js - theremin widget (oscillator and gain)
