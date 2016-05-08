@@ -3,4 +3,14 @@ https://www.bignerdranch.com/blog/music-visualization-with-d3-js/ - audio Apis w
 
 http://www.compositiontoday.com/sound_bank/flute/flute.asp - samples
 
+
+http://webaudio.github.io/web-audio-api/ - Web Audio API W3C docs
+
+https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API - Web Audio API docs (MDN). All these MDN docs are really nice.
+https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API/Visualizations_with_Web_Audio_API - Viz with the Web Audio API
+
+Nice examples (all code on Github):
+http://mdn.github.io/voice-change-o-matic/
+http://mdn.github.io/violent-theremin/
 https://github.com/mdn/violent-theremin/blob/gh-pages/scripts/app.js - theremin widget (oscillator and gain)
+https://github.com/mdn/voice-change-o-matic - drawing waveforms, frequency bars
