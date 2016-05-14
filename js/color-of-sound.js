@@ -162,61 +162,82 @@ $(document).ready(function() {
   drawFrequencyChart();
 
   // State for what is currently playing
-  var oscillatorOn = 0;
   var audioOn = 0;
+  var oscillatorOn = 0;
+  var oscillatorReady = 1;
 
+  // Oscillator settings
   var initialOscillatorType = 'sine';
 
-  var oscillator = audioCtx.createOscillator();
-  oscillator.type = initialOscillatorType; // sine = simple wave, square = more real tone
-  oscillator.frequency.value = 1614; // value in hertz
-  oscillator.detune.value = 0; // value in cents
-  oscillator.connect(oscillatorGain);
+  var oscillatorGainMap = {
+    'sine':.09,
+    'square':.03,
+    'triangle':.05
+  };
+
+  var oscillator;
 
   function play(audiotype) {
-    console.log('inside play function');
     stop();
     if (audiotype == 'trumpet') {
       $('#audioElement')[0].play();
       audioOn = 1;
     } else {
-      oscillator.type = audiotype; // sine = simple wave, square = more real tone
-      console.log('trying to start oscillator with type' + oscillator.type);
-      if (oscillatorOn) {
-        oscillator.onended = function() {
-          console.log('Your tone has now stopped playing!');
+      var createOscillatorOrWait = function() {
+        if (oscillatorReady == 0) {
+          setTimeout(createOscillatorOrWait,25);
+        } else {
+          oscillator = audioCtx.createOscillator();
+          oscillator.frequency.value = 466.13; // value in hertz
+          oscillator.detune.value = 0; // value in cents
+          oscillator.connect(oscillatorGain);
+          oscillator.type = audiotype; // sine = simple wave, square = more real tone
+          oscillatorGain.gain.value = oscillatorGainMap[audiotype];
           oscillator.start();
           oscillatorOn = 1;
         }
-      } else {
-        oscillator.start();
-        oscillatorOn = 1;
-      }
+      };
+      createOscillatorOrWait();
     }
+    drawWaveform();
+    drawFrequencyChart();
   }
 
   function stop() {
-    console.log('inside stop function');
-    if (oscillatorOn) {
-      oscillator.stop();
-    }
+    // Stop any currently playing audio
     if (audioOn) {
-      $('#audioElement')[0].stop();
+      $('#audioElement')[0].pause();
+      $('#audioElement')[0].currentTime = 0;
+      audioOn = 0;
+    }
+    if (oscillatorOn) {
+      oscillatorReady = 0;
+      oscillator.onended = function() {
+        oscillatorReady = 1;
+      }
+      oscillator.stop();
+      oscillatorOn = 0;
     }
   }
 
   function louder() {
-
+    gainNode.gain.value = gainNode.gain.value * 1.1;
   }
 
   function softer() {
-
+    gainNode.gain.value = gainNode.gain.value * .9;
   }
 
   $('.play-audio').on('click',function(){
     play($(this).data('audio-type'));
   });
-
-  // oscillator.start(); // actually play it
-
+  $('.stop-audio').on('click',function(){
+    stop();
+  });
+  $('.louder').on('click',function(){
+    louder();
+  });
+  $('.softer').on('click',function(){
+    softer();
+  });
 });
