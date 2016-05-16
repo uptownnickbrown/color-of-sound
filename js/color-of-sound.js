@@ -10,11 +10,15 @@ $(document).ready(function() {
   // Analysis node
   var analyser = audioCtx.createAnalyser(); // this spelling annoys me, but let's be consistent with the API
   analyser.smoothingTimeConstant = 0.5;
-  analyser.fftSize = 4096; // higher = better but more expensive
+  analyser.fftSize = Math.pow(2,14); // higher = better but more expensive, must be a power of 2
 
-  var bufferLength = analyser.fftSize;
+  // buffer is the number of samples of timeseries data we'll get at one time
+  // buffer = half of the FFT size
+  // samples are played back at the sameple rate, which defaults to 44100 Hz
+  // So the number of buffers played back per second will vary (eg. if buffer is 1000, we will need to
+  // process 44 buffers per second
+  var bufferLength = analyser.fftSize / 2;
   var frequencyBinSize = audioCtx.sampleRate / analyser.fftSize;
-
 
   // create  gain node
   var initialGain = 2;
@@ -47,8 +51,14 @@ $(document).ready(function() {
 
   // Precreate byte arrays for bytewise timeseries / waveform and frequency data
   // Didn't know these array types existed https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array
-  var timeDomainData = new Uint8Array(bufferLength);
-  var frequencyData = new Uint8Array(analyser.frequencyBinCount / 2.5);
+  // TODO remove hard-coded value (for a Bb)
+  var numSamplesPerWave = bufferLength / (466.164 / ((audioCtx.sampleRate / bufferLength)));
+  // Get 4 waves worth of data at a time
+  var timeDomainData = new Uint8Array(numSamplesPerWave * 4);
+  // 2.5 truncates the frequency range, because very high frequencies aren't needed
+  // Without 2.5, it will go up to the Nyquist frequency, which is half the sample rate
+  // and is the theoretical limit above which FFT transformed data isn't available
+  var frequencyData = new Uint8Array(analyser.frequencyBinCount / 10);
 
   // Draw the waveform for the currently playing audio!
 
@@ -59,8 +69,11 @@ $(document).ready(function() {
   var HEIGHT = canvas.height;
   canvasCtx.clearRect(0, 0, WIDTH, HEIGHT);
 
+
   function drawWaveform() {
-    //console.log('updating waveform bars');
+    // using requestAnimationFrame here means we won't redraw until the browser is ready
+    // this does mean not all buffers will be drawn to screen, since they play back faster than the
+    // browser repaints. This is OK.
     requestAnimationFrame(drawWaveform);
 
     // Accepts a Uint8Array of "the right length" which is analyser.frequencyBinCount
@@ -70,32 +83,66 @@ $(document).ready(function() {
     // Base waveform styles
     canvasCtx.fillStyle = 'rgb(230, 230, 230)';
     canvasCtx.fillRect(0, 0, WIDTH, HEIGHT);
+
+    // draw a mid-line
+    canvasCtx.lineWidth = 2;
+    canvasCtx.beginPath();
+    canvasCtx.moveTo(0, canvas.height / 2);
+    canvasCtx.lineTo(canvas.width, canvas.height / 2);
+    canvasCtx.strokeStyle = 'rgb(90, 90, 90)';
+    canvasCtx.stroke();
+    canvasCtx.closePath();
+
+    // Used to draw vertical lines at certain points in the waveform
+    var addVertLine = function(x) {
+      canvasCtx.beginPath();
+      canvasCtx.lineWidth = 1;
+      canvasCtx.moveTo(x, 0);
+      canvasCtx.lineTo(x, canvas.height);
+      canvasCtx.strokeStyle = 'rgb(255, 0, 255)';
+      canvasCtx.stroke();
+      canvasCtx.closePath();
+    }
+
+    // Get the minimum value in an arr
+    var indexOfMin = function(arr,limit) {
+        if (arr.length === 0) {
+            return -1;
+        }
+        var min = arr[0];
+        var minIndex = 0;
+        for (var i = 1; i < limit; i++) {
+            if (arr[i] < min) {
+                minIndex = i;
+                min = arr[i];
+            }
+        }
+        return minIndex;
+    }
+
+    // Get the minimum value in the first "wave's worth" of the current buffer - we're going to start our wave drawing there
+    var minIndex = indexOfMin(timeDomainData,numSamplesPerWave);
+
     canvasCtx.lineWidth = 4;
     canvasCtx.strokeStyle = 'rgb(30, 30, 30)';
 
     // Start drawing
     canvasCtx.beginPath();
 
-    // Copy-pasted from MDN example, need to grok this better
-    var sliceWidth = WIDTH * 1.0 / bufferLength;
+    var sliceWidth = WIDTH / numSamplesPerWave;
     var x = 0;
-
-    for (var i = 0; i < bufferLength; i++) {
-
-      var v = timeDomainData[i] / 128.0;
-      var y = v * HEIGHT / 2;
-
+    for (var i = minIndex; i < (minIndex + numSamplesPerWave + 1); i++) {
+      var y = (timeDomainData[i] * 2 * HEIGHT / 256.0) - (HEIGHT / 2);
       if (i === 0) {
-        canvasCtx.moveTo(x, y);
+        canvasCtx.moveTo(0, y);
       } else {
-        canvasCtx.lineTo(x, y);
+          canvasCtx.lineTo(x, y);
+          x += sliceWidth;
       }
-
-      x += sliceWidth;
     }
-
     canvasCtx.lineTo(canvas.width, canvas.height / 2);
     canvasCtx.stroke();
+    canvasCtx.closePath();
   };
 
   // Draw the frequency analysis for the currently playing audio!
@@ -158,8 +205,7 @@ $(document).ready(function() {
   }
 
   // Run the loop
-  drawWaveform();
-  drawFrequencyChart();
+
 
   // State for what is currently playing
   var audioOn = 0;
@@ -188,7 +234,7 @@ $(document).ready(function() {
           setTimeout(createOscillatorOrWait,25);
         } else {
           oscillator = audioCtx.createOscillator();
-          oscillator.frequency.value = 466.13; // value in hertz
+          oscillator.frequency.value = 466.164; // value in hertz
           oscillator.detune.value = 0; // value in cents
           oscillator.connect(oscillatorGain);
           oscillator.type = audiotype; // sine = simple wave, square = more real tone
@@ -218,6 +264,7 @@ $(document).ready(function() {
       oscillator.stop();
       oscillatorOn = 0;
     }
+    frameCount = 0;
   }
 
   function louder() {
